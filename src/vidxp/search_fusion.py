@@ -55,7 +55,7 @@ def _shared_overlap_components(
         if (
             not current
             or hit.media_id != current_media
-            or hit.start > current_overlap_end
+            or hit.start >= current_overlap_end
         ):
             if current:
                 components.append(current)
@@ -196,6 +196,7 @@ def fuse_search_results(
         modalities=searched_modalities,
         moments=moments,
         fusion=FusionProvenance(
+            overlap_rule="shared_overlap",
             requested_modalities=requested_modalities,
             searched_modalities=searched_modalities,
         ),

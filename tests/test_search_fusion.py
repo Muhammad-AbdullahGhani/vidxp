@@ -1,6 +1,6 @@
 import unittest
 
-from vidxp.application_models import SearchHit, SearchResult
+from vidxp.application_models import FusedSearchResult, SearchHit, SearchResult
 from vidxp.search_fusion import RRF_RANK_CONSTANT, fuse_search_results
 
 
@@ -140,6 +140,40 @@ class SearchFusionTests(unittest.TestCase):
         self.assertEqual(moment_2.end, 26.0)
         self.assertIn("scene:c", [h.source_id for h in moment_2.hits])
         self.assertNotIn("scene:c", [h.source_id for h in moment_1.hits])
+
+    def test_touching_hits_remain_separate_and_provenance_round_trips(self):
+        scene = SearchResult(
+            query_id="scene:q",
+            query="car",
+            modality="scene",
+            hits=(
+                hit("scene", 1, 10.0, 11.0, "scene:a"),
+                hit("scene", 2, 11.0, 12.0, "scene:b"),
+            ),
+        )
+        result = fuse_search_results(
+            query="car", requested_modalities=("scene",), results=(scene,)
+        )
+
+        self.assertEqual(
+            [(moment.start, moment.end) for moment in result.moments],
+            [(10.0, 11.0), (11.0, 12.0)],
+        )
+        self.assertEqual(result.fusion.overlap_rule, "shared_overlap")
+        self.assertEqual(
+            FusedSearchResult.model_validate_json(result.model_dump_json()), result
+        )
+        legacy = result.model_dump(mode="json")
+        legacy["fusion"]["overlap_rule"] = "connected_intervals"
+        self.assertEqual(
+            FusedSearchResult.model_validate(legacy).fusion.overlap_rule,
+            "connected_intervals",
+        )
+        del legacy["fusion"]["overlap_rule"]
+        self.assertEqual(
+            FusedSearchResult.model_validate(legacy).fusion.overlap_rule,
+            "connected_intervals",
+        )
 
     def test_nearby_duplicate_hits_combine_into_one_moment(self):
         hit_1 = hit("scene", 1, 1.0, 3.0, "scene:1")
